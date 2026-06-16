@@ -21,6 +21,20 @@ local _ghostModel:     Model?   = nil
 -- a named lane Part's attributes, or a lane-bounds raycast result).
 local _activeLaneId:   number  = 1
 
+-- Fired with the newly-selected towerId (or nil when placement ends), so the
+-- shop UI can highlight whichever button is currently active.
+local _onPlacementChanged: ((selectedTowerId: string?) -> ())? = nil
+
+-- Register a callback fired whenever the active placement selection changes.
+function TowerPlacementController.SetOnPlacementChanged(cb: (string?) -> ())
+	_onPlacementChanged = cb
+end
+
+-- Returns the towerId currently selected for placement, or nil if none.
+function TowerPlacementController.GetSelectedTowerId(): string?
+	return _selectedTowerId
+end
+
 -- ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 --[[
@@ -70,10 +84,24 @@ function TowerPlacementController.BeginPlacement(towerId: string)
 	_selectedTowerId = towerId
 	_isPlacing       = true
 
-	-- TODO: Clone from ReplicatedStorage.TowerPreviews[towerId] and tint cyan.
+	-- TODO: Clone from ReplicatedStorage.TowerPreviews[towerId] instead of a block.
+	local body = Instance.new("Part")
+	body.Name        = "GhostBody"
+	body.Size        = Vector3.new(3, 3, 3)
+	body.Anchored    = true
+	body.CanCollide  = false
+	body.CanQuery    = false -- don't let the ghost block its own placement raycast
+	body.Transparency = 0.5
+	body.Color       = Color3.fromRGB(80, 220, 255)
+	body.Material    = Enum.Material.ForceField
+
 	_ghostModel = Instance.new("Model")
 	_ghostModel.Name = towerId .. "_Ghost"
+	_ghostModel.PrimaryPart = body
+	body.Parent = _ghostModel
 	_ghostModel.Parent = workspace
+
+	if _onPlacementChanged then _onPlacementChanged(_selectedTowerId) end
 end
 
 --[[
@@ -87,6 +115,7 @@ function TowerPlacementController.CancelPlacement()
 		_ghostModel:Destroy()
 		_ghostModel = nil
 	end
+	if _onPlacementChanged then _onPlacementChanged(nil) end
 end
 
 --[[
@@ -110,7 +139,9 @@ function TowerPlacementController._UpdateGhostPosition()
 			math.round(p.Z / 2) * 2
 		)
 		if _ghostModel.PrimaryPart then
-			_ghostModel:SetPrimaryPartCFrame(CFrame.new(snapped))
+			-- Lift by half the body height so the ghost sits on the surface,
+			-- matching the lift TowerManager.PlaceTower applies server-side.
+			_ghostModel:PivotTo(CFrame.new(snapped + Vector3.new(0, 1.5, 0)))
 		end
 		-- TODO: Validate placement (on-lane, no overlap) and tint accordingly
 	end
@@ -123,7 +154,11 @@ end
 ]]
 function TowerPlacementController._AttemptPlace()
 	if not _selectedTowerId or not _ghostModel then return end
-	local pos = _ghostModel.PrimaryPart and _ghostModel.PrimaryPart.Position or Vector3.new()
+	-- Send the ground hit point (un-lifted) — TowerManager.PlaceTower applies
+	-- its own +1.5 stud lift server-side so towers sit on the surface.
+	local pos = _ghostModel.PrimaryPart
+		and (_ghostModel.PrimaryPart.Position - Vector3.new(0, 1.5, 0))
+		or Vector3.new()
 	local ok  = _network.PlaceTower:InvokeServer(_selectedTowerId, _activeLaneId, pos)
 	if ok then
 		TowerPlacementController.CancelPlacement()

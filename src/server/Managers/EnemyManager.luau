@@ -51,9 +51,58 @@ type EnemyState = {
 	waypointIndex: number,
 	path: { Vector3 },
 	speed: number,
+	healthLabel: TextLabel?,
 }
 
 local _active: { [Model]: EnemyState } = {}
+
+-- Placeholder colors per enemy type until real models are cloned from
+-- ReplicatedStorage.Enemies.
+local ENEMY_COLORS: { [string]: Color3 } = {
+	BurgerBasic  = Color3.fromRGB(140, 90, 40),
+	HotDogRunner = Color3.fromRGB(230, 140, 40),
+	NachoTank    = Color3.fromRGB(230, 200, 60),
+	PizzaBoss    = Color3.fromRGB(200, 40, 40),
+}
+
+--[[
+	Build a simple colored block with a floating health label.
+	TODO: Replace with model:Clone() from ReplicatedStorage.Enemies[data.id].
+]]
+local function buildEnemyModel(data: EnemyData): (Model, TextLabel)
+	local model = Instance.new("Model")
+	model.Name = data.name
+
+	local size = if data.isBoss then Vector3.new(4, 4, 4) else Vector3.new(2, 2, 2)
+	local body = Instance.new("Part")
+	body.Name        = "Body"
+	body.Size        = size
+	body.Anchored    = true
+	body.CanCollide  = false
+	body.Color       = ENEMY_COLORS[data.id] or Color3.fromRGB(200, 200, 200)
+	body.Material    = Enum.Material.SmoothPlastic
+	body.Parent      = model
+
+	local healthGui = Instance.new("BillboardGui")
+	healthGui.Name        = "HealthGui"
+	healthGui.Size        = UDim2.new(2, 0, 0.5, 0)
+	healthGui.StudsOffset = Vector3.new(0, size.Y / 2 + 0.5, 0)
+	healthGui.AlwaysOnTop = true
+	healthGui.Parent      = body
+
+	local healthLabel = Instance.new("TextLabel")
+	healthLabel.Name                = "HealthLabel"
+	healthLabel.Size                = UDim2.new(1, 0, 1, 0)
+	healthLabel.BackgroundTransparency = 1
+	healthLabel.TextColor3          = Color3.new(1, 1, 1)
+	healthLabel.TextScaled          = true
+	healthLabel.Font                = Enum.Font.GothamBold
+	healthLabel.Text                = tostring(data.maxHealth)
+	healthLabel.Parent              = healthGui
+
+	model.PrimaryPart = body
+	return model, healthLabel
+end
 
 -- ── Callbacks (set by WaveManager) ───────────────────────────────────────────
 
@@ -125,10 +174,9 @@ function EnemyManager.SpawnEnemy(enemyId: string, laneId: number, path: { Vector
 		return
 	end
 
-	-- TODO: Clone the model from ReplicatedStorage.Enemies[enemyId] instead.
-	local model = Instance.new("Model")
-	model.Name  = data.name
+	local model, healthLabel = buildEnemyModel(data)
 	model:SetAttribute("EnemyId", enemyId)
+	model:PivotTo(CFrame.new(path[1]))
 	model.Parent = workspace
 
 	_active[model] = {
@@ -138,6 +186,7 @@ function EnemyManager.SpawnEnemy(enemyId: string, laneId: number, path: { Vector
 		waypointIndex  = 1,
 		path           = path,
 		speed          = data.speed,
+		healthLabel    = healthLabel,
 	}
 
 	Network.EnemySpawned:FireAllClients(enemyId, laneId, model)
@@ -152,6 +201,9 @@ function EnemyManager.DamageEnemy(enemy: Model, damage: number, _source: any)
 	local state = _active[enemy]
 	if not state then return end
 	state.health -= damage
+	if state.healthLabel then
+		state.healthLabel.Text = tostring(math.max(0, math.floor(state.health)))
+	end
 	if state.health <= 0 then
 		EnemyManager.KillEnemy(enemy)
 	end

@@ -21,20 +21,53 @@ local _mergeZone: Zone = {
 }
 
 --[[
-	Initialize lane definitions.  Replace the stub paths with Vector3
-	waypoint arrays derived from named Parts in Workspace, e.g.:
-
-	    local pts = workspace.Lanes.Lane1.Waypoints:GetChildren()
-	    table.sort(pts, function(a, b) return a.Name < b.Name end)
-	    _lanes[1].path = table.map(pts, function(p) return p.Position end)
+	Initialize lane definitions by reading Parts under workspace.Lanes.LaneN.Waypoints
+	(see default.project.json, which version-controls these as plain Parts).
+	Falls back to a single empty-path lane if the Lanes folder is missing so the
+	game doesn't hard-crash when testing without it.
 ]]
 function MapManager.Initialize()
-	_lanes = {
-		[1] = { id = 1, name = "Lane 1", path = {}, ownerId = nil, isCoopShared = false },
-		[2] = { id = 2, name = "Lane 2", path = {}, ownerId = nil, isCoopShared = false },
-		[3] = { id = 3, name = "Lane 3", path = {}, ownerId = nil, isCoopShared = false },
-		[4] = { id = 4, name = "Lane 4", path = {}, ownerId = nil, isCoopShared = false },
-	}
+	_lanes = {}
+
+	local lanesFolder = workspace:FindFirstChild("Lanes")
+	if lanesFolder then
+		local laneFolders = lanesFolder:GetChildren()
+		table.sort(laneFolders, function(a, b)
+			return (tonumber(a.Name:match("%d+")) or 0) < (tonumber(b.Name:match("%d+")) or 0)
+		end)
+
+		for _, laneFolder in laneFolders do
+			local laneId = tonumber(laneFolder.Name:match("%d+"))
+			if not laneId then continue end
+
+			local path: { Vector3 } = {}
+			local waypointsFolder = laneFolder:FindFirstChild("Waypoints")
+			if waypointsFolder then
+				local points = waypointsFolder:GetChildren()
+				table.sort(points, function(a, b)
+					return (tonumber(a.Name) or 0) < (tonumber(b.Name) or 0)
+				end)
+				for _, part in points do
+					table.insert(path, (part :: BasePart).Position)
+				end
+			end
+
+			_lanes[laneId] = {
+				id = laneId,
+				name = laneFolder.Name,
+				path = path,
+				ownerId = nil,
+				isCoopShared = false,
+			}
+		end
+	end
+
+	if next(_lanes) == nil then
+		warn("MapManager.Initialize: no Lanes folder found under Workspace; using an empty stub lane")
+		_lanes = {
+			[1] = { id = 1, name = "Lane 1", path = {}, ownerId = nil, isCoopShared = false },
+		}
+	end
 
 	-- TODO: Read merge zone bounds from a Workspace Part named "MergeZone"
 end

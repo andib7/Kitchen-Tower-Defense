@@ -8,6 +8,7 @@ local Shared            = ReplicatedStorage.Shared
 local Types             = require(Shared.Types)
 local Constants         = require(Shared.Constants)
 local Network           = require(Shared.Network)
+local TowerCatalog      = require(Shared.TowerCatalog)
 
 type TowerData = Types.TowerData
 
@@ -18,31 +19,10 @@ local TowerManager = {}
 local function getEconomy() return require(script.Parent.EconomyManager) end
 local function getMap()     return require(script.Parent.MapManager)     end
 
--- ── Tower catalog ─────────────────────────────────────────────────────────────
--- TODO: Move to a dedicated Config/Towers ModuleScript as the roster grows.
-
-local CATALOG: { [string]: TowerData } = {
-	Oven = {
-		id = "Oven", name = "Oven",
-		cost = 75,  damage = 40,  range = 12, fireRate = 0.5,
-		upgradeCost = 100, maxLevel = 3, chefClassBonus = "Pastry",
-	},
-	Blender = {
-		id = "Blender", name = "Blender",
-		cost = 100, damage = 20,  range = 8,  fireRate = 2.0,
-		upgradeCost = 80,  maxLevel = 3, chefClassBonus = "Saucier",
-	},
-	GrillStation = {
-		id = "GrillStation", name = "Grill Station",
-		cost = 150, damage = 80,  range = 15, fireRate = 0.4,
-		upgradeCost = 150, maxLevel = 3, chefClassBonus = "Grill",
-	},
-	FryingPan = {
-		id = "FryingPan", name = "Frying Pan",
-		cost = 50,  damage = 15,  range = 6,  fireRate = 3.0,
-		upgradeCost = 60,  maxLevel = 3, chefClassBonus = "SousChef",
-	},
-}
+-- Tower stats and placeholder colors live in the shared TowerCatalog so the
+-- client shop UI reads the exact same data — see src/shared/TowerCatalog.luau.
+local CATALOG:      { [string]: TowerData } = TowerCatalog.Towers
+local TOWER_COLORS: { [string]: Color3 }    = TowerCatalog.Colors
 
 -- ── Active tower state ────────────────────────────────────────────────────────
 
@@ -56,6 +36,27 @@ type TowerRecord = {
 
 -- _placed[laneId] = { TowerRecord, ... }
 local _placed: { [number]: { TowerRecord } } = {}
+
+--[[
+	Build a simple colored block tower body.
+	TODO: Replace with model:Clone() from ReplicatedStorage.Towers[towerId].
+]]
+local function buildTowerModel(towerId: string): Model
+	local model = Instance.new("Model")
+	model.Name = towerId
+
+	local body = Instance.new("Part")
+	body.Name       = "Body"
+	body.Size       = Vector3.new(3, 3, 3)
+	body.Anchored   = true
+	body.CanCollide = true
+	body.Color      = TOWER_COLORS[towerId] or Color3.fromRGB(150, 150, 150)
+	body.Material   = Enum.Material.Metal
+	body.Parent     = model
+
+	model.PrimaryPart = body
+	return model
+end
 
 local function getLaneTowers(laneId: number): { TowerRecord }
 	if not _placed[laneId] then
@@ -106,11 +107,10 @@ function TowerManager.PlaceTower(
 
 	if not getEconomy().SpendCoins(player, laneId, data.cost) then return false end
 
-	-- TODO: Clone from ReplicatedStorage.Towers[towerId] and CFrame to position.
-	local model = Instance.new("Model")
-	model.Name  = data.name
+	local model = buildTowerModel(towerId)
 	model:SetAttribute("TowerId", towerId)
 	model:SetAttribute("Level",   1)
+	model:PivotTo(CFrame.new(position + Vector3.new(0, 1.5, 0))) -- sit on top of the ground hit point
 	model.Parent = workspace
 
 	table.insert(laneTowers, {
