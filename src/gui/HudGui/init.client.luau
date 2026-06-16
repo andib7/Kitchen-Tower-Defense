@@ -1,0 +1,5 @@
+-- HudGui LocalScript (StarterGui.HudGui)
+-- Thin shim: the real HUD construction lives in HudController so all GUI
+-- logic stays co-located with the controller.  This script intentionally
+-- does nothing; delete it and build Gui elements in Studio if you prefer
+-- a designer-authored workflow instead.

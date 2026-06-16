@@ -1,0 +1,164 @@
+-- TowerPlacementController
+-- Manages the two-step tower placement flow:
+--   1. Player selects a tower from the shop → BeginPlacement().
+--   2. A ghost (preview) model follows the mouse; clicking confirms placement.
+-- Also handles upgrade and sell requests for already-placed towers.
+
+local Players           = game:GetService("Players")
+local UserInputService  = game:GetService("UserInputService")
+local RunService        = game:GetService("RunService")
+
+local TowerPlacementController = {}
+
+local _localPlayer = Players.LocalPlayer
+local _mouse       = _localPlayer:GetMouse()
+local _network: any
+
+local _isPlacing:      boolean = false
+local _selectedTowerId: string? = nil
+local _ghostModel:     Model?   = nil
+-- TODO: determine laneId from which lane the cursor is hovering over (via
+-- a named lane Part's attributes, or a lane-bounds raycast result).
+local _activeLaneId:   number  = 1
+
+-- ── Lifecycle ─────────────────────────────────────────────────────────────────
+
+--[[
+	Wire input events and server confirmation remotes.
+	Must be called once from init.client.luau.
+]]
+function TowerPlacementController.Initialize(network: any)
+	_network = network
+
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if processed then return end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 and _isPlacing then
+			TowerPlacementController._AttemptPlace()
+		elseif input.KeyCode == Enum.KeyCode.Escape then
+			TowerPlacementController.CancelPlacement()
+		end
+	end)
+
+	RunService.RenderStepped:Connect(function()
+		if _isPlacing and _ghostModel then
+			TowerPlacementController._UpdateGhostPosition()
+		end
+	end)
+
+	network.TowerPlaced.OnClientEvent:Connect(
+		function(towerId: string, laneId: number, position: Vector3, model: Model)
+			TowerPlacementController.OnTowerConfirmed(towerId, laneId, position, model)
+		end
+	)
+
+	network.TowerSold.OnClientEvent:Connect(function(_model: Model, _laneId: number)
+		-- Visual cleanup (e.g. remove a selection highlight) goes here.
+	end)
+end
+
+-- ── Placement flow ────────────────────────────────────────────────────────────
+
+--[[
+	Begin placement mode for the given tower type.
+	Spawns a ghost (tinted, non-collidable) preview model the player drags
+	around before clicking to commit.
+	Call this from the tower-shop UI when the player clicks a tower button.
+]]
+function TowerPlacementController.BeginPlacement(towerId: string)
+	TowerPlacementController.CancelPlacement() -- clean up any prior ghost
+
+	_selectedTowerId = towerId
+	_isPlacing       = true
+
+	-- TODO: Clone from ReplicatedStorage.TowerPreviews[towerId] and tint cyan.
+	_ghostModel = Instance.new("Model")
+	_ghostModel.Name = towerId .. "_Ghost"
+	_ghostModel.Parent = workspace
+end
+
+--[[
+	Cancel placement mode without placing a tower.
+	Called on Escape or when placement succeeds.
+]]
+function TowerPlacementController.CancelPlacement()
+	_isPlacing       = false
+	_selectedTowerId = nil
+	if _ghostModel then
+		_ghostModel:Destroy()
+		_ghostModel = nil
+	end
+end
+
+--[[
+	Raycast to the mouse hit position and move the ghost there, snapped to
+	a grid.  Tint red when the position would be invalid (e.g. off-lane,
+	overlapping another tower).
+]]
+function TowerPlacementController._UpdateGhostPosition()
+	local unitRay = workspace.CurrentCamera:ScreenPointToRay(_mouse.X, _mouse.Y)
+	local result  = workspace:Raycast(
+		unitRay.Origin,
+		unitRay.Direction * 500,
+		RaycastParams.new() -- TODO: exclude ghost model and enemy models from hits
+	)
+	if result and _ghostModel then
+		-- Snap to 2-stud grid
+		local p = result.Position
+		local snapped = Vector3.new(
+			math.round(p.X / 2) * 2,
+			p.Y,
+			math.round(p.Z / 2) * 2
+		)
+		if _ghostModel.PrimaryPart then
+			_ghostModel:SetPrimaryPartCFrame(CFrame.new(snapped))
+		end
+		-- TODO: Validate placement (on-lane, no overlap) and tint accordingly
+	end
+end
+
+--[[
+	Send the place request to the server at the ghost model's current position.
+	CancelPlacement() is called immediately on success; on failure the ghost
+	stays so the player can try a different spot.
+]]
+function TowerPlacementController._AttemptPlace()
+	if not _selectedTowerId or not _ghostModel then return end
+	local pos = _ghostModel.PrimaryPart and _ghostModel.PrimaryPart.Position or Vector3.new()
+	local ok  = _network.PlaceTower:InvokeServer(_selectedTowerId, _activeLaneId, pos)
+	if ok then
+		TowerPlacementController.CancelPlacement()
+	end
+	-- TODO: Show red flash + shake on failure
+end
+
+-- ── Confirmation callbacks ────────────────────────────────────────────────────
+
+--[[
+	Called when the server broadcasts any tower placement (local or remote).
+	Use this to play a placement sound/VFX and update any shop UI state.
+]]
+function TowerPlacementController.OnTowerConfirmed(
+	_towerId:  string,
+	_laneId:   number,
+	_position: Vector3,
+	_model:    Model
+)
+	-- TODO: Play snap-in VFX at _position; update affordability in shop UI.
+end
+
+-- ── Tower actions ─────────────────────────────────────────────────────────────
+
+-- Send an upgrade request for a tower the player has selected in the world.
+function TowerPlacementController.RequestUpgrade(tower: Model)
+	local ok = _network.UpgradeTower:InvokeServer(tower)
+	if ok then
+		-- TODO: Play upgrade VFX / update level badge
+	end
+end
+
+-- Send a sell request for a tower the player has selected.
+function TowerPlacementController.RequestSell(tower: Model)
+	_network.SellTower:InvokeServer(tower)
+end
+
+return TowerPlacementController
