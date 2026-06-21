@@ -45,6 +45,7 @@ if IS_SERVER then
 	-- Server → Client (RemoteEvent: fire and forget)
 	Network.UpdateCoins          = makeEvent(remotes, "UpdateCoins")          -- (laneId, newTotal)
 	Network.UpdateMutationPoints = makeEvent(remotes, "UpdateMutationPoints") -- (newTotal)
+	Network.UpdateLives          = makeEvent(remotes, "UpdateLives")          -- (newTotal)
 	Network.WaveStarted          = makeEvent(remotes, "WaveStarted")          -- (waveNumber)
 	Network.WaveEnded            = makeEvent(remotes, "WaveEnded")            -- (waveNumber)
 	Network.EnemySpawned         = makeEvent(remotes, "EnemySpawned")         -- (enemyId, laneId, model)
@@ -67,6 +68,7 @@ else
 
 	Network.UpdateCoins          = remotes:WaitForChild("UpdateCoins")
 	Network.UpdateMutationPoints = remotes:WaitForChild("UpdateMutationPoints")
+	Network.UpdateLives          = remotes:WaitForChild("UpdateLives")
 	Network.WaveStarted          = remotes:WaitForChild("WaveStarted")
 	Network.WaveEnded            = remotes:WaitForChild("WaveEnded")
 	Network.EnemySpawned         = remotes:WaitForChild("EnemySpawned")

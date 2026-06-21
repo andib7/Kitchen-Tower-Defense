@@ -4,7 +4,9 @@
 -- GUI elements are created programmatically here so no Studio-authored Gui
 -- files are needed to run in Play mode.
 
-local Players = game:GetService("Players")
+local Players           = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Constants         = require(ReplicatedStorage.Shared.Constants)
 
 local HudController = {}
 
@@ -17,6 +19,7 @@ local _network: any = nil
 local _hud: ScreenGui
 local _coinLabel: TextLabel
 local _mpLabel:   TextLabel
+local _livesLabel: TextLabel
 local _waveLabel: TextLabel
 local _statusLabel: TextLabel
 
@@ -54,6 +57,22 @@ local function buildHud()
 	_mpLabel.BackgroundTransparency = 1
 	_mpLabel.Font        = Enum.Font.GothamBold
 	_mpLabel.TextScaled  = true
+
+	-- Lives display (top-right)
+	local livesFrame     = Instance.new("Frame", _hud)
+	livesFrame.Size      = UDim2.new(0, 160, 0, 40)
+	livesFrame.AnchorPoint = Vector2.new(1, 0)
+	livesFrame.Position  = UDim2.new(1, -10, 0, 10)
+	livesFrame.BackgroundColor3 = Color3.fromRGB(80, 20, 20)
+	livesFrame.BackgroundTransparency = 0.4
+
+	_livesLabel           = Instance.new("TextLabel", livesFrame)
+	_livesLabel.Size      = UDim2.new(1, 0, 1, 0)
+	_livesLabel.Text      = string.format("Lives: %d", Constants.STARTING_LIVES)
+	_livesLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+	_livesLabel.BackgroundTransparency = 1
+	_livesLabel.Font      = Enum.Font.GothamBold
+	_livesLabel.TextScaled = true
 
 	-- Wave counter (top-center)
 	_waveLabel           = Instance.new("TextLabel", _hud)
@@ -96,6 +115,10 @@ function HudController.Initialize(network: any)
 		HudController.SetMPDisplay(total)
 	end)
 
+	network.UpdateLives.OnClientEvent:Connect(function(total: number)
+		HudController.SetLivesDisplay(total)
+	end)
+
 	network.WaveStarted.OnClientEvent:Connect(function(waveNumber: number)
 		HudController.SetWaveDisplay(waveNumber)
 	end)
@@ -122,6 +145,13 @@ end
 function HudController.SetMPDisplay(total: number)
 	if _mpLabel then
 		_mpLabel.Text = string.format("MP: %d", total)
+	end
+end
+
+-- Update the shared lives label.
+function HudController.SetLivesDisplay(total: number)
+	if _livesLabel then
+		_livesLabel.Text = string.format("Lives: %d", total)
 	end
 end
 

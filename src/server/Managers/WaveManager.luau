@@ -74,6 +74,8 @@ local _isWaveActive:   boolean = false
 local _enemiesLeft:    number  = 0   -- spawned enemies not yet killed or leaked
 local _inIntermission: boolean = false
 local _intermissionT:  number  = 0
+local _isGameOver:     boolean = false
+local _lives:          number  = Constants.STARTING_LIVES
 
 -- ── Lifecycle ─────────────────────────────────────────────────────────────────
 
@@ -92,6 +94,7 @@ function WaveManager.Initialize()
 	end)
 
 	RunService.Heartbeat:Connect(function(dt)
+		if _isGameOver then return end
 		if _inIntermission then
 			_intermissionT -= dt
 			if _intermissionT <= 0 then
@@ -112,6 +115,16 @@ end
 -- Returns true while enemies are still alive or spawning.
 function WaveManager.IsWaveActive(): boolean
 	return _isWaveActive
+end
+
+-- Returns the current size of the shared lives pool.
+function WaveManager.GetLives(): number
+	return _lives
+end
+
+-- Returns true once the lives pool has hit 0 and GameOver has fired.
+function WaveManager.IsGameOver(): boolean
+	return _isGameOver
 end
 
 --[[
@@ -154,6 +167,10 @@ end
 	No-ops if a wave is already running.
 ]]
 function WaveManager.StartWave(waveNumber: number)
+	if _isGameOver then
+		warn("WaveManager.StartWave: game is already over")
+		return
+	end
 	if _isWaveActive then
 		warn("WaveManager.StartWave: wave already in progress")
 		return
@@ -228,12 +245,42 @@ function WaveManager._OnEnemyRemoved(enemy: Model, laneId: number, wasKilled: bo
 				end
 			end
 		end
+	else
+		WaveManager._OnEnemyLeaked()
 	end
 
 	WaveManager._CheckWaveComplete()
 end
 
+--[[
+	An enemy reached the end of its lane without being killed.
+	Costs one life from the shared pool; triggers game over at 0.
+]]
+function WaveManager._OnEnemyLeaked()
+	if _isGameOver then return end
+
+	_lives = math.max(0, _lives - 1)
+	Network.UpdateLives:FireAllClients(_lives)
+
+	if _lives <= 0 then
+		WaveManager._TriggerGameOver()
+	end
+end
+
+--[[
+	Permanently end the run: stops wave/intermission progression and notifies
+	all clients.  Idempotent — safe to call more than once.
+]]
+function WaveManager._TriggerGameOver()
+	if _isGameOver then return end
+	_isGameOver     = true
+	_isWaveActive   = false
+	_inIntermission = false
+	Network.GameOver:FireAllClients()
+end
+
 function WaveManager._CheckWaveComplete()
+	if _isGameOver then return end
 	if not _isWaveActive then return end
 	if _enemiesLeft > 0 then return end
 	if getEnemy().GetTotalEnemyCount() > 0 then return end

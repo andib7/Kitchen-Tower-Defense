@@ -12,6 +12,9 @@ Constants.BASE_WAVE_MP_BONUS     = 10    -- minimum MP bonus for clearing any wa
 Constants.MAX_LANES              = 4
 Constants.COOP_MERGE_LANE_ID     = 0     -- pseudo lane-id for the shared merge zone
 
+-- ── Lives ────────────────────────────────────────────────────────────────────
+Constants.STARTING_LIVES         = 20    -- shared pool; hits 0 → game over
+
 -- ── Waves ────────────────────────────────────────────────────────────────────
 Constants.WAVE_INTERMISSION_SECS = 20    -- seconds between wave end and the next wave
 Constants.SOLO_ENEMY_SCALE       = 0.65  -- enemy count multiplier in single-player
