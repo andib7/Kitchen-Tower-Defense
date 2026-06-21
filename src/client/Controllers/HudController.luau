@@ -37,7 +37,7 @@ local function buildHud()
 
 	_coinLabel           = Instance.new("TextLabel", coinFrame)
 	_coinLabel.Size      = UDim2.new(1, 0, 1, 0)
-	_coinLabel.Text      = "Coins: 150"
+	_coinLabel.Text      = string.format("Coins: %d", Constants.STARTING_COINS) -- corrected by EconomyManager.SyncCoins once the lane is known
 	_coinLabel.TextColor3 = Color3.fromRGB(255, 220, 50)
 	_coinLabel.BackgroundTransparency = 1
 	_coinLabel.Font      = Enum.Font.GothamBold
@@ -52,7 +52,7 @@ local function buildHud()
 
 	_mpLabel             = Instance.new("TextLabel", mpFrame)
 	_mpLabel.Size        = UDim2.new(1, 0, 1, 0)
-	_mpLabel.Text        = "MP: 0"
+	_mpLabel.Text        = string.format("MP: %d", Constants.STARTING_MP)
 	_mpLabel.TextColor3  = Color3.fromRGB(200, 130, 255)
 	_mpLabel.BackgroundTransparency = 1
 	_mpLabel.Font        = Enum.Font.GothamBold

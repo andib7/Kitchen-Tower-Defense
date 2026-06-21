@@ -52,9 +52,20 @@ type EnemyState = {
 	path: { Vector3 },
 	speed: number,
 	healthLabel: TextLabel?,
+	-- Status effects: countdown-seconds, decremented by dt each Heartbeat
+	-- (same style as TowerManager's per-tower cooldown).
+	slowMultiplier: number?,
+	slowExpiry: number?,
+	stunExpiry: number?,
+	burnDps: number?,
+	burnExpiry: number?,
 }
 
 local _active: { [Model]: EnemyState } = {}
+
+-- Permanent per-lane speed multiplier (e.g. the SeasonedLane mutation).
+-- Defaults to 1 (no effect) for any lane not present in this table.
+local _laneSpeedMultiplier: { [number]: number } = {}
 
 -- Placeholder colors per enemy type until real models are cloned from
 -- ReplicatedStorage.Enemies.
@@ -156,6 +167,27 @@ function EnemyManager.GetTotalEnemyCount(): number
 	return n
 end
 
+-- Returns the current health of an active enemy, or nil if it's not active.
+function EnemyManager.GetEnemyHealth(enemy: Model): number?
+	local state = _active[enemy]
+	return state and state.health
+end
+
+-- Returns every active enemy on laneId within radius studs of position,
+-- excluding centerEnemy itself. Used for splash/spread on-hit effects.
+function EnemyManager.GetEnemiesNear(position: Vector3, radius: number, laneId: number, centerEnemy: Model?): { Model }
+	local result = {}
+	for model, state in _active do
+		if model == centerEnemy or state.laneId ~= laneId then continue end
+		local root = model.PrimaryPart
+		if not root then continue end
+		if (root.Position - position).Magnitude <= radius then
+			table.insert(result, model)
+		end
+	end
+	return result
+end
+
 -- ── Mutation ──────────────────────────────────────────────────────────────────
 
 --[[
@@ -223,6 +255,38 @@ function EnemyManager.KillEnemy(enemy: Model)
 	if _onKilled then _onKilled(enemy, laneId) end
 end
 
+-- ── Status effects ───────────────────────────────────────────────────────────
+
+-- Apply (or refresh) a damage-over-time burn on enemy for duration seconds.
+function EnemyManager.ApplyBurn(enemy: Model, dps: number, duration: number)
+	local state = _active[enemy]
+	if not state then return end
+	state.burnDps    = dps
+	state.burnExpiry = duration
+end
+
+-- Apply (or refresh) a speed multiplier on enemy for duration seconds.
+-- multiplier should be < 1 to slow; the most recent application always wins.
+function EnemyManager.ApplySlow(enemy: Model, multiplier: number, duration: number)
+	local state = _active[enemy]
+	if not state then return end
+	state.slowMultiplier = multiplier
+	state.slowExpiry     = duration
+end
+
+-- Prevent enemy from moving for duration seconds.
+function EnemyManager.ApplyStun(enemy: Model, duration: number)
+	local state = _active[enemy]
+	if not state then return end
+	state.stunExpiry = duration
+end
+
+-- Set a permanent speed multiplier for every enemy currently and future on
+-- laneId (e.g. the SeasonedLane mutation). Pass 1 to clear.
+function EnemyManager.SetLaneSpeedMultiplier(laneId: number, multiplier: number)
+	_laneSpeedMultiplier[laneId] = multiplier
+end
+
 -- ── Per-frame update ──────────────────────────────────────────────────────────
 
 --[[
@@ -232,6 +296,35 @@ end
 ]]
 function EnemyManager.UpdateEnemies(dt: number)
 	for enemy, state in _active do
+		-- Tick burn DoT first; it may kill the enemy before it ever moves.
+		if state.burnExpiry and state.burnExpiry > 0 then
+			EnemyManager.DamageEnemy(enemy, (state.burnDps or 0) * dt, "burn")
+			if not _active[enemy] then continue end -- burn finished it off
+			state.burnExpiry -= dt
+			if state.burnExpiry <= 0 then
+				state.burnDps    = nil
+				state.burnExpiry = nil
+			end
+		end
+
+		-- Tick stun: skip movement entirely while stunned.
+		if state.stunExpiry and state.stunExpiry > 0 then
+			state.stunExpiry -= dt
+			if state.stunExpiry <= 0 then
+				state.stunExpiry = nil
+			end
+			continue
+		end
+
+		-- Tick slow expiry (multiplier itself is applied below).
+		if state.slowExpiry and state.slowExpiry > 0 then
+			state.slowExpiry -= dt
+			if state.slowExpiry <= 0 then
+				state.slowMultiplier = nil
+				state.slowExpiry     = nil
+			end
+		end
+
 		local target = state.path[state.waypointIndex]
 		if not target then continue end
 
@@ -250,8 +343,12 @@ function EnemyManager.UpdateEnemies(dt: number)
 				if _onReachedEnd then _onReachedEnd(enemy, state.laneId) end
 			end
 		else
-			-- Move toward waypoint
-			local move   = direction.Unit * math.min(state.speed * dt, dist)
+			-- Move toward waypoint, applying any active slow + the lane's
+			-- permanent speed multiplier (e.g. from the SeasonedLane mutation).
+			local effectiveSpeed = state.speed
+				* (state.slowMultiplier or 1)
+				* (_laneSpeedMultiplier[state.laneId] or 1)
+			local move    = direction.Unit * math.min(effectiveSpeed * dt, dist)
 			root.Position = root.Position + move
 		end
 	end

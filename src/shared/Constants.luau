@@ -4,7 +4,7 @@
 local Constants = {}
 
 -- ── Economy ──────────────────────────────────────────────────────────────────
-Constants.STARTING_COINS         = 150   -- per-lane coins each player starts with
+Constants.STARTING_COINS         = 15000   -- per-lane coins each player starts with
 Constants.SELL_REFUND_RATE       = 0.6   -- fraction of total tower spend returned on sell
 Constants.BASE_WAVE_MP_BONUS     = 10    -- minimum MP bonus for clearing any wave
 
@@ -22,6 +22,7 @@ Constants.MAX_ENEMIES_IN_FLIGHT  = 30    -- hard cap on simultaneously active en
 
 -- ── Mutations ────────────────────────────────────────────────────────────────
 Constants.MAX_MUTATION_TIER      = 4
+Constants.STARTING_MP            = 10000 -- shared pool; all players start with this
 
 -- ── Towers ───────────────────────────────────────────────────────────────────
 Constants.MAX_TOWERS_PER_LANE    = 12

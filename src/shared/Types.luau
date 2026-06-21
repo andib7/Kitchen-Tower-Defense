@@ -12,6 +12,16 @@ export type Lane = {
 	isCoopShared: boolean, -- true when two players share this lane
 }
 
+-- Per-level combat stats + ability-strength numbers for one tower level.
+-- `special` holds whatever ability fields that tower's class reads (e.g.
+-- burnDps/burnDuration for FryingPan, splashRadius/stunChance for Oven).
+export type TowerLevelData = {
+	damage: number,
+	range: number,
+	fireRate: number,
+	special: { [string]: number }?,
+}
+
 -- Static definition for a kitchen-appliance tower type.
 export type TowerData = {
 	id: string,
@@ -23,6 +33,7 @@ export type TowerData = {
 	upgradeCost: number,
 	maxLevel: number,
 	chefClassBonus: ChefClass?, -- class whose chef gets a stat bonus on this tower
+	levels: { [number]: TowerLevelData }?, -- per-level overrides; falls back to top-level stats if absent
 }
 
 -- Static definition for a food enemy type.

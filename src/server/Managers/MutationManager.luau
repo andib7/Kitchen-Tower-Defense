@@ -19,6 +19,8 @@ local MutationManager = {}
 -- ── Lazy dependency ───────────────────────────────────────────────────────────
 
 local function getEconomy() return require(script.Parent.EconomyManager) end
+local function getMap()     return require(script.Parent.MapManager)     end
+local function getEnemy()   return require(script.Parent.EnemyManager)   end
 
 -- ── Mutation catalog ──────────────────────────────────────────────────────────
 -- TODO: Move to Config/Mutations when the tree grows large.
@@ -146,25 +148,30 @@ end
 -- ── Apply ─────────────────────────────────────────────────────────────────────
 
 --[[
-	Apply a targeted mutation to a tower or lane.
+	Apply a targeted mutation to a tower or the caller's lane.
 	- "tower" targetType: stamps a boolean Attribute on the Model so
-	  TowerManager's attack loop can factor it in.
-	- "global" / "lane" targetType: these are passively read via
-	  GetActiveMutations() and require no per-model stamping.
+	  BaseTower:GetEffectiveStats() can factor it in.
+	- "lane" targetType: resolves the caller's lane via MapManager and
+	  immediately triggers the lane-scoped effect in EnemyManager.
+	- "global" targetType: requires no per-model stamping; read passively
+	  via IsMutationUnlocked()/GetActiveMutations().
 	Returns true if the mutation is valid, unlocked, and applied.
 ]]
-function MutationManager.ApplyMutation(mutationId: string, target: Model | number): boolean
+function MutationManager.ApplyMutation(player: Player, mutationId: string, target: Model?): boolean
 	local data = CATALOG[mutationId]
 	if not data then return false end
 	if not _unlocked[mutationId] then return false end
 
-	if data.targetType == "tower" and typeof(target) ~= "number" then
-		local model = target :: Model
-		model:SetAttribute("Mutation_" .. mutationId, true)
+	if data.targetType == "tower" then
+		if not target then return false end
+		target:SetAttribute("Mutation_" .. mutationId, true)
 		return true
-	elseif data.targetType == "lane" and typeof(target) == "number" then
-		-- Lane mutations are stored as a global flag scoped to laneId.
-		-- EnemyManager reads GetActiveMutations() and filters by lane.
+	elseif data.targetType == "lane" then
+		local laneId = getMap().GetPlayerLane(player)
+		if not laneId then return false end
+		if mutationId == "SeasonedLane" then
+			getEnemy().SetLaneSpeedMultiplier(laneId, 0.9)
+		end
 		return true
 	elseif data.targetType == "global" then
 		return true -- applied globally by being in _unlocked

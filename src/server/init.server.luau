@@ -48,8 +48,8 @@ Network.UnlockMutation.OnServerInvoke = function(_player, mutationId)
 	return MutationManager.UnlockMutation(mutationId)
 end
 
-Network.ApplyMutation.OnServerInvoke = function(_player, mutationId, target)
-	return MutationManager.ApplyMutation(mutationId, target)
+Network.ApplyMutation.OnServerInvoke = function(player, mutationId, target)
+	return MutationManager.ApplyMutation(player, mutationId, target)
 end
 
 -- ── Game start ────────────────────────────────────────────────────────────────
@@ -59,6 +59,17 @@ end
 task.delay(5, function()
 	-- Assign all current players to lanes before the first wave
 	local Players = game:GetService("Players")
-	MapManager.SetupCoopLanes(Players:GetPlayers())
+	local players = Players:GetPlayers()
+	MapManager.SetupCoopLanes(players)
+
+	-- Push each player's real starting balance now that their lane is known,
+	-- so the HUD shows the actual wallet instead of a guessed placeholder.
+	for _, player in players do
+		local laneId = MapManager.GetPlayerLane(player)
+		if laneId then
+			EconomyManager.SyncCoins(player, laneId)
+		end
+	end
+
 	WaveManager.StartWave(1)
 end)

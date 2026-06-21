@@ -15,7 +15,7 @@ local EconomyManager = {}
 
 -- _coins[UserId][laneId] = current balance
 local _coins: { [number]: { [number]: number } } = {}
-local _mutationPoints: number = 0
+local _mutationPoints: number = Constants.STARTING_MP
 
 -- ── Internal ──────────────────────────────────────────────────────────────────
 
@@ -77,6 +77,16 @@ end
 function EconomyManager.GetCoins(player: Player, laneId: number): number
 	ensureWallet(player.UserId, laneId)
 	return _coins[player.UserId][laneId]
+end
+
+--[[
+	Push a player's current lane balance to their client.
+	Call once a player's lane is assigned so the HUD reflects the real
+	starting balance instead of a guessed placeholder.
+]]
+function EconomyManager.SyncCoins(player: Player, laneId: number)
+	ensureWallet(player.UserId, laneId)
+	Network.UpdateCoins:FireClient(player, laneId, _coins[player.UserId][laneId])
 end
 
 -- ── Mutation Points (shared pool) ─────────────────────────────────────────────

@@ -8,12 +8,14 @@ local Network = require(ReplicatedStorage.Shared.Network)
 
 local Controllers = script.Controllers
 
-local HudController            = require(Controllers.HudController)
-local TowerPlacementController = require(Controllers.TowerPlacementController)
-local MutationController       = require(Controllers.MutationController)
-local ShopController           = require(Controllers.ShopController)
+local HudController             = require(Controllers.HudController)
+local TowerPlacementController  = require(Controllers.TowerPlacementController)
+local TowerSelectionController  = require(Controllers.TowerSelectionController)
+local MutationController        = require(Controllers.MutationController)
+local ShopController            = require(Controllers.ShopController)
 
 HudController.Initialize(Network)
 TowerPlacementController.Initialize(Network)
+TowerSelectionController.Initialize(Network) -- after TowerPlacementController so SetOnPlacementChanged is wired
 MutationController.Initialize(Network)
 ShopController.Initialize(Network) -- after TowerPlacementController so SetOnPlacementChanged is wired

@@ -22,12 +22,19 @@ local _ghostModel:     Model?   = nil
 local _activeLaneId:   number  = 1
 
 -- Fired with the newly-selected towerId (or nil when placement ends), so the
--- shop UI can highlight whichever button is currently active.
-local _onPlacementChanged: ((selectedTowerId: string?) -> ())? = nil
+-- shop UI and tower-selection UI can react to placement mode toggling.
+-- A list (not a single slot) since multiple controllers need to listen.
+local _onPlacementChanged: { (selectedTowerId: string?) -> () } = {}
 
 -- Register a callback fired whenever the active placement selection changes.
 function TowerPlacementController.SetOnPlacementChanged(cb: (string?) -> ())
-	_onPlacementChanged = cb
+	table.insert(_onPlacementChanged, cb)
+end
+
+local function fireOnPlacementChanged()
+	for _, cb in _onPlacementChanged do
+		cb(_selectedTowerId)
+	end
 end
 
 -- Returns the towerId currently selected for placement, or nil if none.
@@ -101,7 +108,7 @@ function TowerPlacementController.BeginPlacement(towerId: string)
 	body.Parent = _ghostModel
 	_ghostModel.Parent = workspace
 
-	if _onPlacementChanged then _onPlacementChanged(_selectedTowerId) end
+	fireOnPlacementChanged()
 end
 
 --[[
@@ -115,7 +122,7 @@ function TowerPlacementController.CancelPlacement()
 		_ghostModel:Destroy()
 		_ghostModel = nil
 	end
-	if _onPlacementChanged then _onPlacementChanged(nil) end
+	fireOnPlacementChanged()
 end
 
 --[[
