@@ -22,11 +22,47 @@ local _selectedModel: Model?            = nil
 local _levelConn:     RBXScriptConnection? = nil
 local _destroyConn:   RBXScriptConnection? = nil
 local _selectionBox:  SelectionBox
+local _rangeRing:     Part? = nil
 
 local _panel:          Frame
 local _titleLabel:     TextLabel
 local _upgradeButton:  TextButton
 local _sellButton:     TextButton
+
+-- ── Range ring ────────────────────────────────────────────────────────────────
+
+local function destroyRangeRing()
+	if _rangeRing then _rangeRing:Destroy(); _rangeRing = nil end
+end
+
+local function showRangeRing(model: Model)
+	destroyRangeRing()
+	local root    = model.PrimaryPart
+	if not root then return end
+	local towerId = model:GetAttribute("TowerId") :: string?
+	local level   = (model:GetAttribute("Level") :: number?) or 1
+	local data    = towerId and TowerCatalog.Towers[towerId]
+	if not data then return end
+	local levelData = data.levels and data.levels[level]
+	local range     = (levelData and levelData.range) or data.range
+	if model:GetAttribute("Mutation_CrispyCrust") then range *= 1.15 end
+
+	local ring = Instance.new("Part")
+	ring.Name          = "RangeRing"
+	ring.Shape         = Enum.PartType.Cylinder
+	ring.Size          = Vector3.new(0.1, range * 2, range * 2)
+	ring.CFrame        = CFrame.new(root.Position.X, root.Position.Y - 1.4, root.Position.Z)
+	                   * CFrame.Angles(0, 0, math.pi / 2)
+	ring.Anchored      = true
+	ring.CanCollide    = false
+	ring.CanQuery      = false
+	ring.CastShadow    = false
+	ring.Material      = Enum.Material.Neon
+	ring.Color         = Color3.fromRGB(100, 200, 255)
+	ring.Transparency  = 0.72
+	ring.Parent        = workspace
+	_rangeRing = ring
+end
 
 -- ── GUI construction ──────────────────────────────────────────────────────────
 
@@ -159,9 +195,11 @@ function TowerSelectionController._Select(model: Model)
 	_selectedModel         = model
 	_selectionBox.Adornee  = model
 	_panel.Visible         = true
+	showRangeRing(model)
 
 	_levelConn = model:GetAttributeChangedSignal("Level"):Connect(function()
 		TowerSelectionController._RefreshPanel()
+		showRangeRing(model)
 	end)
 	_destroyConn = model.Destroying:Connect(function()
 		TowerSelectionController._Deselect()
@@ -176,6 +214,7 @@ function TowerSelectionController._Deselect()
 	_selectedModel        = nil
 	_selectionBox.Adornee = nil
 	_panel.Visible        = false
+	destroyRangeRing()
 end
 
 -- Refresh the panel's title and button labels from the selected tower's

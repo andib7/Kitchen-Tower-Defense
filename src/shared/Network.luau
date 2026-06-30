@@ -52,6 +52,7 @@ if IS_SERVER then
 	Network.EnemyDied            = makeEvent(remotes, "EnemyDied")            -- (model, laneId)
 	Network.TowerPlaced          = makeEvent(remotes, "TowerPlaced")          -- (towerId, laneId, position, model)
 	Network.TowerSold            = makeEvent(remotes, "TowerSold")            -- (model, laneId)
+	Network.TowerFired           = makeEvent(remotes, "TowerFired")           -- (towerModel: Model, hitPosition: Vector3)
 	Network.MutationUnlocked     = makeEvent(remotes, "MutationUnlocked")     -- (mutationId)
 	Network.GameOver             = makeEvent(remotes, "GameOver")             -- ()
 
@@ -75,6 +76,7 @@ else
 	Network.EnemyDied            = remotes:WaitForChild("EnemyDied")
 	Network.TowerPlaced          = remotes:WaitForChild("TowerPlaced")
 	Network.TowerSold            = remotes:WaitForChild("TowerSold")
+	Network.TowerFired           = remotes:WaitForChild("TowerFired")
 	Network.MutationUnlocked     = remotes:WaitForChild("MutationUnlocked")
 	Network.GameOver             = remotes:WaitForChild("GameOver")
 end

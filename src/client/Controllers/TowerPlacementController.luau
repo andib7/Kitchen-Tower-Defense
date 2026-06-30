@@ -7,6 +7,8 @@
 local Players           = game:GetService("Players")
 local UserInputService  = game:GetService("UserInputService")
 local RunService        = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TowerCatalog      = require(ReplicatedStorage.Shared.TowerCatalog)
 
 local TowerPlacementController = {}
 
@@ -17,6 +19,7 @@ local _network: any
 local _isPlacing:      boolean = false
 local _selectedTowerId: string? = nil
 local _ghostModel:     Model?   = nil
+local _ghostRing:      Part?    = nil
 -- TODO: determine laneId from which lane the cursor is hovering over (via
 -- a named lane Part's attributes, or a lane-bounds raycast result).
 local _activeLaneId:   number  = 1
@@ -108,6 +111,25 @@ function TowerPlacementController.BeginPlacement(towerId: string)
 	body.Parent = _ghostModel
 	_ghostModel.Parent = workspace
 
+	local data = TowerCatalog.Towers[towerId]
+	if data then
+		local levelData = data.levels and data.levels[1]
+		local range = (levelData and levelData.range) or data.range
+		local ring = Instance.new("Part")
+		ring.Name         = "GhostRangeRing"
+		ring.Shape        = Enum.PartType.Cylinder
+		ring.Size         = Vector3.new(0.1, range * 2, range * 2)
+		ring.Anchored     = true
+		ring.CanCollide   = false
+		ring.CanQuery     = false
+		ring.CastShadow   = false
+		ring.Material     = Enum.Material.Neon
+		ring.Color        = Color3.fromRGB(80, 220, 255)
+		ring.Transparency = 0.78
+		ring.Parent       = workspace
+		_ghostRing = ring
+	end
+
 	fireOnPlacementChanged()
 end
 
@@ -118,10 +140,8 @@ end
 function TowerPlacementController.CancelPlacement()
 	_isPlacing       = false
 	_selectedTowerId = nil
-	if _ghostModel then
-		_ghostModel:Destroy()
-		_ghostModel = nil
-	end
+	if _ghostModel then _ghostModel:Destroy(); _ghostModel = nil end
+	if _ghostRing   then _ghostRing:Destroy();  _ghostRing  = nil end
 	fireOnPlacementChanged()
 end
 
@@ -146,9 +166,12 @@ function TowerPlacementController._UpdateGhostPosition()
 			math.round(p.Z / 2) * 2
 		)
 		if _ghostModel.PrimaryPart then
-			-- Lift by half the body height so the ghost sits on the surface,
-			-- matching the lift TowerManager.PlaceTower applies server-side.
-			_ghostModel:PivotTo(CFrame.new(snapped + Vector3.new(0, 1.5, 0)))
+			local liftedPos = snapped + Vector3.new(0, 1.5, 0)
+			_ghostModel:PivotTo(CFrame.new(liftedPos))
+			if _ghostRing then
+				_ghostRing.CFrame = CFrame.new(liftedPos.X, liftedPos.Y - 1.4, liftedPos.Z)
+				                  * CFrame.Angles(0, 0, math.pi / 2)
+			end
 		end
 		-- TODO: Validate placement (on-lane, no overlap) and tint accordingly
 	end

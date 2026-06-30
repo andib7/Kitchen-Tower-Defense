@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared            = ReplicatedStorage.Shared
 local Types             = require(Shared.Types)
 local TowerCatalog      = require(Shared.TowerCatalog)
+local Network           = require(Shared.Network)
 
 type TowerData      = Types.TowerData
 type TowerLevelData = Types.TowerLevelData
@@ -147,6 +148,11 @@ function BaseTower:Update(dt: number, enemyManager: any)
 		if targetRoot and isInZone(targetRoot.Position, getMap().GetMergeZone()) then
 			damage *= 1.25
 		end
+	end
+
+	local targetRoot = target.PrimaryPart
+	if targetRoot then
+		Network.TowerFired:FireAllClients(self.model, targetRoot.Position)
 	end
 
 	enemyManager.DamageEnemy(target, damage, self.model)

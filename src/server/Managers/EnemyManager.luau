@@ -257,12 +257,28 @@ end
 
 -- ── Status effects ───────────────────────────────────────────────────────────
 
+-- Compute the current highest-priority status for an enemy and stamp it as a
+-- model Attribute so clients can read it without a server round-trip.
+-- Priority: stun > burn > slow > "" (none).
+local function syncStatusAttribute(enemy: Model, state: any)
+	if state.stunExpiry and state.stunExpiry > 0 then
+		enemy:SetAttribute("Status", "stun")
+	elseif state.burnExpiry and state.burnExpiry > 0 then
+		enemy:SetAttribute("Status", "burn")
+	elseif state.slowExpiry and state.slowExpiry > 0 then
+		enemy:SetAttribute("Status", "slow")
+	else
+		enemy:SetAttribute("Status", "")
+	end
+end
+
 -- Apply (or refresh) a damage-over-time burn on enemy for duration seconds.
 function EnemyManager.ApplyBurn(enemy: Model, dps: number, duration: number)
 	local state = _active[enemy]
 	if not state then return end
 	state.burnDps    = dps
 	state.burnExpiry = duration
+	syncStatusAttribute(enemy, state)
 end
 
 -- Apply (or refresh) a speed multiplier on enemy for duration seconds.
@@ -272,6 +288,7 @@ function EnemyManager.ApplySlow(enemy: Model, multiplier: number, duration: numb
 	if not state then return end
 	state.slowMultiplier = multiplier
 	state.slowExpiry     = duration
+	syncStatusAttribute(enemy, state)
 end
 
 -- Prevent enemy from moving for duration seconds.
@@ -279,6 +296,7 @@ function EnemyManager.ApplyStun(enemy: Model, duration: number)
 	local state = _active[enemy]
 	if not state then return end
 	state.stunExpiry = duration
+	syncStatusAttribute(enemy, state)
 end
 
 -- Set a permanent speed multiplier for every enemy currently and future on
@@ -304,6 +322,7 @@ function EnemyManager.UpdateEnemies(dt: number)
 			if state.burnExpiry <= 0 then
 				state.burnDps    = nil
 				state.burnExpiry = nil
+				syncStatusAttribute(enemy, state)
 			end
 		end
 
@@ -312,6 +331,7 @@ function EnemyManager.UpdateEnemies(dt: number)
 			state.stunExpiry -= dt
 			if state.stunExpiry <= 0 then
 				state.stunExpiry = nil
+				syncStatusAttribute(enemy, state)
 			end
 			continue
 		end
@@ -322,6 +342,7 @@ function EnemyManager.UpdateEnemies(dt: number)
 			if state.slowExpiry <= 0 then
 				state.slowMultiplier = nil
 				state.slowExpiry     = nil
+				syncStatusAttribute(enemy, state)
 			end
 		end
 
